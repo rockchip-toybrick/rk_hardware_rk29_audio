@@ -38,7 +38,7 @@
 #include <cutils/properties.h>
 #include <cutils/str_parms.h>
 
-#include <speex/speex.h>
+//#include <speex/speex.h>
 #include <speex/speex_preprocess.h>
 #include <speex/speex_resampler.h>
 

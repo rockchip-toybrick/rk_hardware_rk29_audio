@@ -64,7 +64,7 @@
 #include <audio_route/audio_route.h>
 
 
-#include <speex/speex.h>
+//#include <speex/speex.h>
 #include <speex/speex_preprocess.h>
 
 

@@ -80,7 +80,7 @@ LOCAL_CFLAGS += -DVOICE_SUPPORT
 endif
 LOCAL_CFLAGS += -Wno-error
 LOCAL_SHARED_LIBRARIES := liblog libcutils libtinyalsa libaudioutils libaudioroute libhardware_legacy libspeexresampler
-LOCAL_STATIC_LIBRARIES := libspeex
+#LOCAL_STATIC_LIBRARIES := libspeex
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)
 
@@ -90,5 +90,4 @@ LOCAL_SRC_FILES:= amix.c alsa_mixer.c
 LOCAL_MODULE:= amix
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_SHARED_LIBRARIES := liblog libc libcutils
-LOCAL_MODULE_TAGS:= debug
 include $(BUILD_EXECUTABLE)
