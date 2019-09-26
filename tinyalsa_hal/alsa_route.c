@@ -104,6 +104,59 @@ int route_init(void)
 }
 
 /**
+ * @brief route_init
+ *
+ * @returns
+ */
+int route_card_init(int card)
+{
+    char soundcard[32];
+    char soundCardID[20] = "";
+    static FILE * fp;
+    unsigned i, config_count = sizeof(sound_card_config_list) / sizeof(struct alsa_sound_card_config);
+    size_t read_size;
+
+    ALOGV("route_card_init(card %d)", card);
+    sprintf(soundcard, "/proc/asound/card%d/id", card);
+    fp = fopen(soundcard, "rt");
+    if (!fp) {
+        ALOGE("Open %s error!", soundcard);
+    } else {
+        read_size = fread(soundCardID, sizeof(char), sizeof(soundCardID), fp);
+        fclose(fp);
+
+        if (soundCardID[read_size - 1] == '\n') {
+            read_size--;
+            soundCardID[read_size] = '\0';
+        }
+
+        ALOGV("Sound card%d is %s", card, soundCardID);
+
+        for (i = 0; i < config_count; i++) {
+            if (!(sound_card_config_list + i) || !sound_card_config_list[i].sound_card_name ||
+                !sound_card_config_list[i].route_table)
+                continue;
+
+            if (strncmp(sound_card_config_list[i].sound_card_name, soundCardID,
+                read_size) == 0) {
+                route_table = sound_card_config_list[i].route_table;
+                ALOGD("Get route table for sound card0 %s", soundCardID);
+            }
+        }
+    }
+
+    if (!route_table) {
+        route_table = &default_config_table;
+        ALOGD("Can not get config table for sound card0 %s, so get default config table.", soundCardID);
+    }
+
+    for (i = PCM_DEVICE0_PLAYBACK; i < PCM_MAX; i++)
+         mPcm[i] = NULL;
+
+    return 0;
+}
+
+/**
  * @brief route_uninit 
  */
 void route_uninit(void)
@@ -543,6 +596,98 @@ void route_pcm_open(uint32_t route)
         route_set_controls(route);
 __exit:
 	ALOGV("route_pcm_open exit");
+}
+
+/**
+ * @brief route_pcm_open
+ *
+ * @param route
+ */
+void route_pcm_card_open(int card, uint32_t route)
+{
+    int is_playback;
+
+    if (route >= MAX_ROUTE) {
+        ALOGE("route_pcm_card_open() route %d error!", route);
+        goto __exit;
+    }
+    if (card < 0) {
+        ALOGE("route_pcm_card_open() card %d error!", card);
+        goto __exit;
+    }
+#ifdef SUPPORT_USB //usb input maybe used for primary
+
+	if (route != USB_NORMAL_ROUTE &&
+        route != USB_CAPTURE_ROUTE &&
+        route != CAPTURE_OFF_ROUTE &&
+        route != MAIN_MIC_CAPTURE_ROUTE &&
+        route != HANDS_FREE_MIC_CAPTURE_ROUTE &&
+        route != BLUETOOTH_SOC_MIC_CAPTURE_ROUTE) {
+        ALOGV("route %d error for usb sound card!", route);
+        goto __exit;
+    }
+#else //primary input maybe used for usb
+    if (route > BLUETOOTH_SOC_MIC_CAPTURE_ROUTE &&
+        route != HDMI_NORMAL_ROUTE &&
+        route != SPDIF_NORMAL_ROUTE &&
+        route != USB_CAPTURE_ROUTE &&
+        route != HDMI_IN_NORMAL_ROUTE &&
+        route != HDMI_IN_OFF_ROUTE &&
+        route != PLAYBACK_OFF_ROUTE) {
+        ALOGV("route %d error for codec or hdmi!", route);
+        goto __exit;
+    }
+#endif
+
+    ALOGV("route_pcm_card_open(card %d, route %d)", card, route);
+
+    is_playback = is_playback_route(route);
+
+    if (!route_table) {
+        route_card_init(card);
+    }
+
+    const struct config_route *route_info = get_route_config(route);
+    if (!route_info) {
+        ALOGE("route_pcm_open() Can not get config of route");
+        goto __exit;
+    }
+
+    ALOGD("route_info->sound_card %d, route_info->devices 0 %s %s",
+        route_info->sound_card,
+        (route_info->devices == DEVICES_0_1 || route_info->devices == DEVICES_0_2 ||
+        route_info->devices == DEVICES_0_1_2) ? (route_info->devices == DEVICES_0_2 ? "2" : "1") : "",
+        route_info->devices == DEVICES_0_1_2 ? "2" : "");
+
+    if (is_playback) {
+        //close all route and pcm
+        if (mMixerPlayback) {
+            route_set_controls(INCALL_OFF_ROUTE);
+            route_set_controls(VOIP_OFF_ROUTE);
+        }
+        route_pcm_close(PLAYBACK_OFF_ROUTE);
+
+        //Open playback and capture of device 2
+
+    } else {
+        route_pcm_close(CAPTURE_OFF_ROUTE);
+    }
+
+    //update mMixer
+    if (is_playback) {
+        if (mMixerPlayback == NULL)
+            mMixerPlayback = mixer_open_legacy(card);
+    } else {
+        if (mMixerCapture == NULL)
+            mMixerCapture = mixer_open_legacy(card);
+    }
+
+    //set controls
+    if (route_info->controls_count > 0)
+        route_set_controls(route);
+__exit:
+	ALOGV("route_pcm_open exit");
+
 }
 
 /**

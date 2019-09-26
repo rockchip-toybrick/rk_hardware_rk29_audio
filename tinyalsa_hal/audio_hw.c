@@ -750,7 +750,7 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
-    route_pcm_open(getRouteFromDevice(out->device));
+    route_pcm_card_open(adev->out_card[SND_OUT_SOUND_CARD_SPEAKER], getRouteFromDevice(out->device));
 
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
@@ -984,7 +984,8 @@ static int start_input_stream(struct stream_in *in)
     int card = 0;
     in_dump(in, 0);
     read_in_sound_card(in);
-    route_pcm_open(getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
+    route_pcm_card_open(adev->in_card[SND_IN_SOUND_CARD_MIC],
+                        getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
 #ifdef RK3399_LAPTOP //HARD CODE FIXME
     if ((in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
             (adev->mode == AUDIO_MODE_IN_COMMUNICATION)) {
@@ -3654,7 +3655,7 @@ static int adev_open(const hw_module_t* module, const char* name,
     adev->hw_device.dump = adev_dump;
     adev->hw_device.get_microphones = adev_get_microphones;
     //adev->ar = audio_route_init(MIXER_CARD, NULL);
-    route_init();
+    //route_init();
     /* adev->cur_route_id initial value is 0 and such that first device
      * selection is always applied by select_devices() */
     *device = &adev->hw_device.common;

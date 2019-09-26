@@ -127,5 +127,6 @@ int route_set_input_source(const char *source);
 int route_set_voice_volume(const char *ctlName, float volume);
 int route_set_controls(unsigned route);
 void route_pcm_open(unsigned route);
+void route_pcm_card_open(int card, unsigned route);
 int route_pcm_close(unsigned route);
 #endif
