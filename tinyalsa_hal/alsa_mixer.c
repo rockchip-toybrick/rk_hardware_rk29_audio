@@ -126,6 +126,9 @@ void mixer_close_legacy(struct mixer *mixer)
 {
     unsigned n,m;
 
+    if (!mixer)
+        return;
+
     if (mixer->fd >= 0)
         close(mixer->fd);
 
@@ -138,7 +141,7 @@ void mixer_close_legacy(struct mixer *mixer)
                 for (m = 0; m < max; m++)
                     if(mixer->ctl[n].ename[m])
                         free(mixer->ctl[n].ename[m]);
-                if(mixer->ctl[n].ename[m])
+                if(mixer->ctl[n].ename)
                     free(mixer->ctl[n].ename);
             }
         }
