@@ -25,18 +25,33 @@ const struct config_control rt5640_speaker_normal_controls[] = {
         .int_val = {on},
     },
     {
-        .ctl_name = "HPO MIX DAC2 Switch",
+        .ctl_name = "Speaker Channel Switch",
+        .int_val = {on, on},
+    },
+    {
+        .ctl_name = "SPK MIXL DAC L2 Switch",
         .int_val = {on},
     },
     {
-        .ctl_name = "HP L Playback Switch",
+        .ctl_name = "SPK MIXR DAC R2 Switch",
         .int_val = {on},
     },
     {
-        .ctl_name = "HP R Playback Switch",
+        .ctl_name = "SPOL MIX SPKVOL L Switch",
         .int_val = {on},
     },
-
+    {
+        .ctl_name = "SPOR MIX SPKVOL R Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Speaker L Playback Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Speaker R Playback Switch",
+        .int_val = {on},
+    },
 };
 
 const struct config_control rt5640_headphone_normal_controls[] = {
@@ -120,7 +135,18 @@ const struct config_control rt5640_playback_off_controls[] = {
         .ctl_name = "HP R Playback Switch",
         .int_val = {off},
     },
-
+    {
+        .ctl_name = "Speaker L Playback Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "Speaker R Playback Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "Speaker Channel Switch",
+        .int_val = {off, off},
+    },
 };
 
 const struct config_control rt5640_capture_off_controls[] = {
