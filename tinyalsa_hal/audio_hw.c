@@ -264,6 +264,8 @@ uint32_t getInputRouteFromDevice(uint32_t device)
         return BLUETOOTH_SOC_MIC_CAPTURE_ROUTE;
     case AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET:
         return USB_CAPTURE_ROUTE;
+    case AUDIO_DEVICE_IN_HDMI:
+        return HDMI_IN_CAPTURE_ROUTE;
     default:
         return CAPTURE_OFF_ROUTE;
     }
@@ -430,6 +432,32 @@ static bool is_bt_in_sound_card(char* buf)
     return false;
 }
 
+/*add sound card name of hdmiin here*/
+static char* NAME [] =
+{
+"hdmiin",
+};
+
+static bool is_hdmi_in_sound_card(char* buf)
+{
+    int length = sizeof(NAME)/sizeof(char*);
+
+    if(buf == NULL)
+        return false;
+
+    /*
+     * hdmiin: diffrent product may have diffrent card name,modify codes here
+     * for example:
+     *   1.   0 [realtekrt5651co]: realtekrt5651co - realtekrt5651codec_hdmiin
+     *   2.   2 [rk,hdmiin-tc358]: rk,hdmiin-tc358 - rk,hdmiin-tc358749x-codec
+     */
+    for(int i = 0; i < length; i ++) {
+        if(strstr(buf,NAME[i]) && strstr(buf,":")) {
+            return true;
+        }
+    }
+    return false;
+}
 
 static int get_card_number(char* buf)
 {
@@ -527,6 +555,9 @@ static void read_in_sound_card(struct stream_in *in)
             device->in_card[SND_IN_SOUND_CARD_MIC] = get_card_number(buf);
         } else if(is_bt_in_sound_card(buf)){
             device->in_card[SND_IN_SOUND_CARD_BT] = get_card_number(buf);
+        }
+        if(is_hdmi_in_sound_card(buf)){
+            device->in_card[SND_IN_SOUND_CARD_HDMI] = get_card_number(buf);
         }
     }
     if(file != NULL){
@@ -879,6 +910,66 @@ static void release_buffer(struct resampler_buffer_provider *buffer_provider,
     in->frames_in -= buffer->frame_count;
 }
 
+#define STR_32KHZ "32KHZ"
+#define STR_44_1KHZ "44.1KHZ"
+#define STR_48KHZ "48KHZ"
+/**
+ * @brief get_hdmiin_audio_rate
+ * @param
+ * @return hdmiin audio rate
+ */
+static int get_hdmiin_audio_rate(struct audio_device *adev)
+{
+    int rate = 44100;
+    char value[PROPERTY_VALUE_MAX] = "";
+    property_get("vendor.hdmiin.audiorate", value, STR_44_1KHZ);
+
+    if ( 0 == strncmp(value, STR_32KHZ, strlen(STR_32KHZ)) ){
+        rate = 32000;
+    }else if( 0 == strncmp(value, STR_44_1KHZ, strlen(STR_44_1KHZ)) ){
+        rate = 44100;
+    }else if( 0 == strncmp(value, STR_48KHZ, strlen(STR_48KHZ)) ){
+        rate = 48000;
+    } else {
+        rate = atoi(value);
+        if (rate <= 0)
+            rate = 44100;
+    }
+
+    // if hdmiin connect to codec, use 44100 sample rate
+    if (adev->in_card[SND_IN_SOUND_CARD_HDMI]
+            == adev->out_card[SND_OUT_SOUND_CARD_SPEAKER])
+        rate = 44100;
+
+    return rate;
+}
+
+int create_resampler_helper(struct stream_in *in, uint32_t in_rate)
+{
+    int ret = 0;
+    if (in->resampler) {
+        release_resampler(in->resampler);
+        in->resampler = NULL;
+    }
+
+    in->buf_provider.get_next_buffer = get_next_buffer;
+    in->buf_provider.release_buffer = release_buffer;
+    ALOGD("create resampler, channel %d, rate %d => %d",
+                    audio_channel_count_from_in_mask(in->channel_mask),
+                    in_rate, in->requested_rate);
+    ret = create_resampler(in_rate,
+                    in->requested_rate,
+                    audio_channel_count_from_in_mask(in->channel_mask),
+                    RESAMPLER_QUALITY_DEFAULT,
+                    &in->buf_provider,
+                    &in->resampler);
+    if (ret != 0) {
+        ret = -EINVAL;
+    }
+
+    return ret;
+}
+
 /**
  * @brief start_input_stream
  * must be called with input stream and hw device mutexes locked
@@ -950,7 +1041,21 @@ static int start_input_stream(struct stream_in *in)
         }
     }
 #else
-    if (in->device & AUDIO_DEVICE_IN_BUILTIN_MIC) {
+    card = (int)adev->in_card[SND_IN_SOUND_CARD_HDMI];
+    if (in->device & AUDIO_DEVICE_IN_HDMI && (card != (int)SND_OUT_SOUND_CARD_UNKNOWN)) {
+        in->config->rate = get_hdmiin_audio_rate(adev);
+        in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
+        ALOGD("open HDMIIN %d", card);
+        if (in->resampler) {
+            release_resampler(in->resampler);
+            in->resampler = NULL;
+        }
+
+        // if hdmiin connect to codec, don't resample
+        if (in->config->rate != in->requested_rate) {
+            ret = create_resampler_helper(in, in->config->rate);
+        }
+    } else if (in->device & AUDIO_DEVICE_IN_BUILTIN_MIC) {
         card = adev->in_card[SND_IN_SOUND_CARD_MIC];
         in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
     } else {
@@ -1630,6 +1735,40 @@ static void dump_out_data(const void* buffer,size_t bytes)
     }
 }
 
+static void dump_in_data(const void* buffer, size_t bytes)
+{
+    static int offset = 0;
+    static FILE* fd = NULL;
+    char value[PROPERTY_VALUE_MAX];
+    property_get("vendor.audio.record.in", value, "0");
+    int size = atoi(value);
+    if(size > 0) {
+        if(fd == NULL) {
+            fd=fopen("/data/misc/audioserver/debug_in.pcm","wb+");
+            if(fd == NULL) {
+                ALOGD("DEBUG open /data/misc/audioserver/debug_in.pcm ,errno = %s",strerror(errno));
+            } else {
+                ALOGD("dump pcm to file /data/misc/audioserver/debug_in.pcm");
+            }
+            offset = 0;
+        }
+    }
+
+    if(fd != NULL){
+        ALOGD("dump in pcm %zu bytes", bytes);
+        fwrite(buffer,bytes,1,fd);
+        offset += bytes;
+        fflush(fd);
+        if(offset >= size*1024*1024) {
+            fclose(fd);
+            fd = NULL;
+            offset = 0;
+            property_set("vendor.audio.record.in", "0");
+            ALOGD("TEST record pcmfile end");
+        }
+    }
+}
+
 /**
  * @brief reset_bitstream_buf
  *
@@ -2114,6 +2253,11 @@ static void do_in_standby(struct stream_in *in)
     if (!in->standby) {
         pcm_close(in->pcm);
         in->pcm = NULL;
+
+        if (in->device & AUDIO_DEVICE_IN_HDMI) {
+            route_pcm_close(HDMI_IN_CAPTURE_OFF_ROUTE);
+        }
+
         in->dev->input_source = AUDIO_SOURCE_DEFAULT;
         in->dev->in_device = AUDIO_DEVICE_NONE;
         in->dev->in_channel_mask = 0;
@@ -2347,6 +2491,14 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
     struct audio_device *adev = in->dev;
     size_t frames_rq = bytes / audio_stream_in_frame_size(stream);
 
+    if (in->device & AUDIO_DEVICE_IN_HDMI) {
+        unsigned int rate = get_hdmiin_audio_rate(adev);
+        if(rate != in->config->rate){
+            ALOGD("HDMI-In: rate is changed: %d -> %d, restart input stream",
+                    in->config->rate, rate);
+            do_in_standby(in);
+        }
+    }
     /*
      * acquiring hw device mutex systematically is useful if a low
      * priority thread is waiting on the input stream mutex - e.g.
@@ -2376,6 +2528,8 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
     if (ret > 0)
         ret = 0;
 
+    dump_in_data(buffer, bytes);
+
 #ifdef AUDIO_3A
     do {
         if (adev->voice_api != NULL) {
@@ -2397,6 +2551,11 @@ static ssize_t in_read(struct audio_stream_in *stream, void* buffer,
      */
     //if (ret == 0 && adev->mic_mute)
     //    memset(buffer, 0, bytes);
+
+    if (in->device & AUDIO_DEVICE_IN_HDMI) {
+        goto exit;
+    }
+
 #ifdef SPEEX_DENOISE_ENABLE
     if(!adev->mic_mute && ret== 0) {
         int index = 0;
@@ -3251,6 +3410,10 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
     in->device = devices & ~AUDIO_DEVICE_BIT_IN;
     in->io_handle = handle;
     in->channel_mask = config->channel_mask;
+    if (in->device & AUDIO_DEVICE_IN_HDMI) {
+        ALOGD("HDMI-In: use low latency");
+        flags |= AUDIO_INPUT_FLAG_FAST;
+    }
     in->flags = flags;
     struct pcm_config *pcm_config = flags & AUDIO_INPUT_FLAG_FAST ?
                                             &pcm_config_in_low_latency : &pcm_config_in;
@@ -3293,6 +3456,10 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         }
     }
 
+    if (in->device&AUDIO_DEVICE_IN_HDMI) {
+        goto out;
+    }
+
 #ifdef AUDIO_3A
     ALOGD("voice process has opened, try to create voice process!");
     adev->voice_api = rk_voiceprocess_create(DEFAULT_PLAYBACK_SAMPLERATE,
@@ -3329,6 +3496,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
 
 #endif
 
+out:
     *stream_in = &in->stream;
     return 0;
 

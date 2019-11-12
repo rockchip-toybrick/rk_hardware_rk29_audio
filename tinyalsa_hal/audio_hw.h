@@ -270,6 +270,7 @@ enum snd_in_sound_cards {
     SND_IN_SOUND_CARD_UNKNOWN = -1,
     SND_IN_SOUND_CARD_MIC = 0,
     SND_IN_SOUND_CARD_BT,
+    SND_IN_SOUND_CARD_HDMI,
     SND_IN_SOUND_CARD_MAX,
 };
 struct audio_device {

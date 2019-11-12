@@ -848,20 +848,16 @@ const struct config_control rt5651_hdmiin_normal_controls[] = {
         .str_val = "Enable",
     },
     {
-        .ctl_name = "DAC MIXL INF1 Switch",
+        .ctl_name = "IF2 ASRC Switch",
         .int_val = {on},
     },
     {
-        .ctl_name = "DAC MIXR INF1 Switch",
-        .int_val = {on},
+        .ctl_name = "DAC L2 Mux",
+        .str_val = "IF2",
     },
     {
-        .ctl_name = "Stereo DAC MIXL DAC L1 Switch",
-        .int_val = {off},
-    },
-    {
-        .ctl_name = "Stereo DAC MIXR DAC R1 Switch",
-        .int_val = {off},
+        .ctl_name = "DAC R2 Mux",
+        .str_val = "IF2",
     },
     {
         .ctl_name = "Stereo DAC MIXL DAC L2 Switch",
@@ -919,8 +915,108 @@ const struct config_control rt5651_hdmiin_off_controls[] = {
         .ctl_name = "RT5651 ASRC Switch",
         .str_val = "Disable",
     },
-
+    {
+        .ctl_name = "IF2 ASRC Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "Stereo DAC MIXL DAC L2 Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "Stereo DAC MIXR DAC R2 Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "ADC Capture Switch",
+        .int_val = {1, 1},
+    },
 };
+
+const struct config_control rt5651_hdmiin_captrue_controls[] = {
+    {
+        .ctl_name = "RT5651 ASRC Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "IF2 ASRC Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "DAC L2 Mux",
+        .str_val = "IF2",
+    },
+    {
+        .ctl_name = "DAC R2 Mux",
+        .str_val = "IF2",
+    },
+    {
+        .ctl_name = "DD MIXL DAC L2 Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "DD MIXR DAC R2 Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "Stereo1 ADC L2 Mux",
+        .str_val = "DD MIX",
+    },
+    {
+        .ctl_name = "Stereo1 ADC R2 Mux",
+        .str_val = "DD MIX",
+    },
+    {
+        .ctl_name = "Stereo1 ADC MIXL ADC2 Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "Stereo1 ADC MIXR ADC2 Switch",
+        .int_val = {1},
+    },
+    {
+        .ctl_name = "ADC Capture Switch",
+        .int_val = {1, 1},
+    },
+
+    {
+        .ctl_name = "ADC Capture Volume",
+        .int_val = {47, 47},
+    },
+};
+
+const struct config_control rt5651_hdmiin_captrue_off_controls[] = {
+    {
+        .ctl_name = "RT5651 ASRC Switch",
+        .int_val = {0},
+    },
+    {
+        .ctl_name = "IF2 ASRC Switch",
+        .int_val = {0},
+    },
+
+    {
+        .ctl_name = "DD MIXL DAC L2 Switch",
+        .int_val = {0},
+    },
+    {
+        .ctl_name = "DD MIXR DAC R2 Switch",
+        .int_val = {0},
+    },
+    {
+        .ctl_name = "Stereo1 ADC MIXL ADC2 Switch",
+        .int_val = {0},
+    },
+    {
+        .ctl_name = "Stereo1 ADC MIXR ADC2 Switch",
+        .int_val = {0},
+    },
+    {
+        .ctl_name = "ADC Capture Switch",
+        .int_val = {0, 0},
+    },
+};
+
 const struct config_route_table rt5651_config_table = {
     //speaker
     .speaker_normal = {
@@ -1104,6 +1200,16 @@ const struct config_route_table rt5651_config_table = {
         .controls = rt5651_hdmiin_off_controls,
         .controls_count = sizeof(rt5651_hdmiin_off_controls) / sizeof(struct config_control),
     },
+
+    .hdmiin_captrue = {
+        .controls = rt5651_hdmiin_captrue_controls,
+        .controls_count = sizeof(rt5651_hdmiin_captrue_controls) / sizeof(struct config_control),
+    },
+    .hdmiin_captrue_off = {
+        .controls = rt5651_hdmiin_captrue_off_controls,
+        .controls_count = sizeof(rt5651_hdmiin_captrue_off_controls) / sizeof(struct config_control),
+    },
+
     //hdmi
     .hdmi_normal = {
         .sound_card = 1,
