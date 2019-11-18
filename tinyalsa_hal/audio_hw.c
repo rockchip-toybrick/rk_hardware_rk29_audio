@@ -1436,7 +1436,6 @@ int out_dump(const struct audio_stream *stream, int fd)
     ALOGD("out->Channels   : %d", out->config.channels);
     ALOGD("out->Formate    : %d", out->config.format);
     ALOGD("out->PreiodSize : %d", out->config.period_size);
-    ALOGD("out->flag       : %d", out->config.flag);
     return 0;
 }
 /**
@@ -2977,8 +2976,8 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
         out->config.format = PCM_FORMAT_S16_LE;
     }
 
-    ALOGD("out->config.rate = %d, out->config.channels = %d out->config.format = %d,out->config.flag = %d",
-          out->config.rate, out->config.channels, out->config.format,out->config.flag);
+    ALOGD("out->config.rate = %d, out->config.channels = %d out->config.format = %d",
+          out->config.rate, out->config.channels, out->config.format);
 
     out->stream.common.get_sample_rate = out_get_sample_rate;
     out->stream.common.set_sample_rate = out_set_sample_rate;

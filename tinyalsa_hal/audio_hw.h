@@ -116,7 +116,6 @@ struct pcm_config pcm_config = {
     .period_size = 512,
     .period_count = 3,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_in = {
@@ -125,7 +124,6 @@ struct pcm_config pcm_config_in = {
     .period_size = 1024,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 #elif defined RK3399_LAPTOP
 struct pcm_config pcm_config = {
@@ -134,7 +132,6 @@ struct pcm_config pcm_config = {
     .period_size = 480,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_in = {
@@ -143,7 +140,6 @@ struct pcm_config pcm_config_in = {
     .period_size = 120,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 #else
 struct pcm_config pcm_config = {
@@ -152,7 +148,6 @@ struct pcm_config pcm_config = {
     .period_size = 512,
     .period_count = 6,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_in = {
@@ -165,7 +160,6 @@ struct pcm_config pcm_config_in = {
 #endif
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 #endif
 
@@ -175,7 +169,6 @@ struct pcm_config pcm_config_in_low_latency = {
     .period_size = 256,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_sco = {
@@ -184,7 +177,6 @@ struct pcm_config pcm_config_sco = {
     .period_size = 128,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 /* for bt client call*/
@@ -193,7 +185,6 @@ struct pcm_config pcm_config_hfp = {
     .rate = 44100,
     .period_size = 256,
     .period_count = 4,
-    .format = PCM_FORMAT_S16_LE,
 };
 #ifdef BT_AP_SCO
 struct pcm_config pcm_config_ap_sco = {
@@ -201,7 +192,6 @@ struct pcm_config pcm_config_ap_sco = {
     .rate = 8000,
     .period_size = 80,
     .period_count = 4,
-    .format = PCM_FORMAT_S16_LE,
 };
 
 struct pcm_config pcm_config_in_bt = {
@@ -210,7 +200,6 @@ struct pcm_config pcm_config_in_bt = {
     .period_size = 120,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 #endif
 struct pcm_config pcm_config_deep = {
@@ -223,7 +212,6 @@ struct pcm_config pcm_config_deep = {
     .period_size = 8192,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_hdmi_multi = {
@@ -232,7 +220,6 @@ struct pcm_config pcm_config_hdmi_multi = {
     .period_size = 1024,
     .period_count = 4,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_LPCM,
 };
 
 struct pcm_config pcm_config_direct = {
@@ -241,7 +228,6 @@ struct pcm_config pcm_config_direct = {
     .period_size = 1024*4,
     .period_count = 3,
     .format = PCM_FORMAT_S16_LE,
-    .flag = HW_PARAMS_FLAG_NLPCM,
 };
 
 enum output_type {

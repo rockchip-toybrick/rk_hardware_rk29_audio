@@ -88,21 +88,6 @@ struct pcm_mask {
     unsigned int bits[32 / sizeof(unsigned int)];
 };
 
-#ifdef LIBTINYALSA_ENABLE_VNDK_EXT
-struct pcm_config {
-    unsigned int channels;
-    unsigned int rate;
-    unsigned int period_size;
-    unsigned int period_count;
-    enum pcm_format format;
-    unsigned int start_threshold;
-    unsigned int stop_threshold;
-    unsigned int silence_threshold;
-    unsigned int silence_size;
-    int avail_min;
-    int flag;
-};
-#else
 /* Configuration for a stream */
 struct pcm_config {
     unsigned int channels;
@@ -132,7 +117,7 @@ struct pcm_config {
      */
     int avail_min;
 };
-#endif
+
 /* PCM parameters */
 enum pcm_param
 {
