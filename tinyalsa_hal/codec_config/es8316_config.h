@@ -4,6 +4,18 @@
 #include "config.h"
 
 const struct config_control es8316_speaker_normal_controls[] = {
+    {
+        .ctl_name = "DAC Playback Volume",
+        .int_val = {192, 192},
+    },
+    {
+        .ctl_name = "Left Headphone Mixer Left DAC Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Right Headphone Mixer Right DAC Switch",
+	.int_val = {on},
+    },
 };
 
 const struct config_control es8316_speaker_incall_controls[] = {
@@ -28,6 +40,18 @@ const struct config_control es8316_earpiece_voip_controls[] = {
 };
 
 const struct config_control es8316_headphone_normal_controls[] = {
+    {
+        .ctl_name = "DAC Playback Volume",
+        .int_val = {192, 192},
+    },
+    {
+        .ctl_name = "Left Headphone Mixer Left DAC Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Right Headphone Mixer Right DAC Switch",
+	.int_val = {on},
+    },
 };
 
 const struct config_control es8316_headphone_incall_controls[] = {
@@ -68,12 +92,20 @@ const struct config_control es8316_bluetooth_voip_controls[] = {
 
 const struct config_control es8316_main_mic_capture_controls[] = {
     {
+        .ctl_name = "ADC Capture Volume",
+        .int_val = {192},
+    },
+    {
         .ctl_name = "Differential Mux",
         .int_val = {0},
     },
 };
 
 const struct config_control es8316_hands_free_mic_capture_controls[] = {
+    {
+        .ctl_name = "ADC Capture Volume",
+        .int_val = {192},
+    },
     {
         .ctl_name = "Differential Mux",
         .int_val = {1},
@@ -84,6 +116,18 @@ const struct config_control es8316_bluetooth_sco_mic_capture_controls[] = {
 };
 
 const struct config_control es8316_playback_off_controls[] = {
+    {
+        .ctl_name = "DAC Playback Volume",
+        .int_val = {0, 0},
+    },
+    {
+        .ctl_name = "Left Headphone Mixer Left DAC Switch",
+        .int_val = {off},
+    },
+    {
+        .ctl_name = "Right Headphone Mixer Right DAC Switch",
+	.int_val = {off},
+    },
 };
 
 const struct config_control es8316_capture_off_controls[] = {
