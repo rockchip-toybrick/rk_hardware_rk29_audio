@@ -360,6 +360,9 @@ static bool is_hdmi_out_sound_card(char* buf)
     }
 
     // add codes here
+    if (strstr(buf,"hdmisound")&& strstr(buf,":")) {
+        return true;
+    }
 
     return false;
 }
