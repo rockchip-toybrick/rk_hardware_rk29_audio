@@ -48,6 +48,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
+#define SNDRV_CARDS 8
+#define SNDRV_DEVICES 8
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define SND_CARDS_NODE          "/proc/asound/cards"
@@ -286,193 +288,296 @@ uint32_t getRouteFromDevice(uint32_t device)
         return getOutputRouteFromDevice(device);
 }
 
-static int get_line(FILE* file, char *line, int line_size)
+struct dev_proc_info SPEAKER_OUT_NAME[] = /* add codes& dai name here*/
 {
-    int ch;
-    char *q;
+    {"realtekrt5616c", NULL,},
+    {"realtekrt5651co", "rt5651-aif1",},
+    {"realtekrt5670c", NULL,},
+    {"realtekrt5672c", NULL,},
+    {"realtekrt5678co", NULL,},
+    {"rkhdmianalogsnd", NULL,},
+    {"rockchipcx2072x", NULL,},
+    {"rockchipes8316c", NULL,},
+    {"rockchipes8323c", NULL,},
+    {"rockchipes8388c", NULL,},
+    {"rockchipes8396c", NULL,},
+    {"rockchiprk", NULL, },
+    {"rockchiprk809co", NULL,},
+    {"rockchiprk817co", NULL,},
+    {"rockchiprt5640c", "rt5640-aif1",},
+    {"rockchiprt5670c", NULL,},
+    {"rockchiprt5672c", NULL,},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
 
-    q = line;
-    for(;;) {
-        ch = getc(file);
-        if (ch < 0)
-            return ch;
-        if (ch == '\n') {
-            /* process line */
-            if (q > line && q[-1] == '\r')
-                q--;
-            *q = '\0';
-
-            return 0;
-        } else {
-            if ((q - line) < line_size - 1){
-                *q++ = tolower(ch);  // convert to lower
-            }
-        }
-    }
-}
-
-static bool is_speaker_out_sound_card(char* buf)
+struct dev_proc_info HDMI_OUT_NAME[] =
 {
-    /*add codes name here*/
-    static char* SPEAKER_NAME [] =
-    {
-       "rockchiprk",
-       "realtekrt5651co",
-       "rockchipes8316c",
-       "rockchiprk809co",
-       "rockchiprk817co",
-       "rockchiprt5640c",
-    };
+    {"realtekrt5651co", "i2s-hifi",},
+    {"realtekrt5670co", "i2s-hifi",},
+    {"rkhdmidpsound", NULL,},
+    {"rockchiphdmi", NULL,},
+    {"rockchiprt5640c", "i2s-hifi",},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
 
-    int length = sizeof(SPEAKER_NAME)/sizeof(char*);
 
-    if (buf == NULL)
-        return false;
+struct dev_proc_info SPDIF_OUT_NAME[] =
+{
+    {"ROCKCHIPSPDIF", "dit-hifi",},
+    {"rockchipcdndp", NULL,},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
 
-    /*
-     * speaker: diffrent product may have diffrent card name,modify codes here
-     * for example: 0 [rockchiprk3328 ]: rockchip-rk3328 - rockchip-rk3328
-     */
+struct dev_proc_info BT_OUT_NAME[] =
+{
+    {"rockchipbt", NULL,},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
 
-    for (int i = 0; i < length; i ++) {
-        if(strstr(buf,SPEAKER_NAME[i]) && strstr(buf,":"))
+struct dev_proc_info MIC_IN_NAME[] =
+{
+    {"realtekrt5616c", NULL,},
+    {"realtekrt5651co", "rt5651-aif1",},
+    {"realtekrt5670c", NULL,},
+    {"realtekrt5672c", NULL,},
+    {"realtekrt5678co", NULL,},
+    {"rockchipes8316c", NULL,},
+    {"rockchipes8323c", NULL,},
+    {"rockchipes8396c", NULL,},
+    {"rockchipes7210", NULL,},
+    {"rockchipes7243", NULL,},
+    {"rockchiprk", NULL, },
+    {"rockchiprk809co", NULL,},
+    {"rockchiprk817co", NULL,},
+    {"rockchiprt5640c", NULL,},
+    {"rockchiprt5670c", NULL,},
+    {"rockchiprt5672c", NULL,},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
+
+
+struct dev_proc_info HDMI_IN_NAME[] =
+{
+    {"realtekrt5651co", "tc358749x-audio"},
+    {"hdmiin", NULL},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
+
+struct dev_proc_info BT_IN_NAME[] =
+{
+    {"rockchipbt", NULL},
+    {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
+};
+
+static bool is_specified_out_sound_card(char *id, struct dev_proc_info *match)
+{
+    int i = 0;
+
+    if (!match)
+        return true; /* match any */
+
+    while (match[i].cid) {
+        if (!strcmp(id, match[i].cid)) {
             return true;
     }
-
+        i++;
+    }
     return false;
 }
 
-static bool is_hdmi_out_sound_card(char* buf)
+static bool dev_id_match(const char *info, const char *did)
 {
-    if (buf == NULL)
+    const char *deli = "id:";
+    char *id;
+    int idx = 0;
+
+    if (!did)
+        return true;
+    if (!info)
         return false;
-
-    /*
-     * hdmi: diffrent product may have diffrent card name,modify codes here
-     * for example: 1 [rockchiphdmi   ]: rockchip-hdmi - rockchip-hdmi
-     */
-    if (strstr(buf,"rockchiphdmi")&& strstr(buf,":")) {
+    /* find str like-> id: ff880000.i2s-rt5651-aif1 rt5651-aif1-0 */
+    id = strstr(info, deli);
+    if (!id)
+        return false;
+    id += strlen(deli);
+    while(id[idx] != '\0') {
+        if (id[idx] == '\r' ||id[idx] == '\n') {
+            id[idx] = '\0';
+            break;
+    }
+        idx ++;
+    }
+    if (strstr(id, did)) {
+        ALOGE("match dai!!!: %s", id, did);
         return true;
     }
-    // for dp
-    if (strstr(buf,"rkhdmidpsound") && strstr(buf,":")) {
-        return true;
-    }
-
-    // add codes here
-    if (strstr(buf,"hdmisound")&& strstr(buf,":")) {
-        return true;
-    }
-
     return false;
 }
 
-static bool is_spdif_out_sound_card(char* buf)
+static bool get_specified_out_dev(struct dev_info *devinfo,
+                                  int card,
+                                  const char *id,
+                                  struct dev_proc_info *match)
 {
-    if (buf == NULL)
-        return false;
+    int i = 0;
+    int device;
+    char str_device[32];
+    char info[256];
+    size_t len;
+    FILE* file = NULL;
 
-    /*
-     * hdmi: diffrent product may have diffrent card name,modify codes here
-     * for example: 2 [rockchipspdif  ]: rockchip-spdif - rockchip-spdif
-     */
-    if (strstr(buf,"rockchipspdif")&& strstr(buf,":")) {
+    /* parse card id */
+    if (!match)
+        return true; /* match any */
+    while (match[i].cid) {
+        if (!strcmp(id, match[i].cid)) {
+            break;
+        }
+        i++;
+    }
+    if (!match[i].cid)
+        return false;
+    if (!match[i].did) { /* no exist dai info, exit */
+        devinfo->card = card;
+        devinfo->device = 0;
+        ALOGD("%s card, got card=%d,device=%d", devinfo->id,
+              devinfo->card, devinfo->device);
         return true;
     }
 
-    // add codes here
-
+    /* parse device id */
+    for (device = 0; device < SNDRV_DEVICES; device++) {
+        sprintf(str_device, "proc/asound/card%d/pcm%dp/info", card, device);
+        if (access(str_device, 0)) {
+            ALOGD("No exist %s, break and finish parsing", str_device);
+            break;
+        }
+        file = fopen(str_device, "r");
+        if (!file) {
+            ALOGD("Could reading %s property", str_device);
+            continue;
+        }
+        len = fread(info, sizeof(char), sizeof(info)/sizeof(char), file);
+        fclose(file);
+        if (len == 0 || len > sizeof(info)/sizeof(char))
+            continue;
+        if (info[len - 1] == '\n') {
+            len--;
+            info[len] = '\0';
+        }
+        /* parse device dai */
+        if (dev_id_match(info, match[i].did)) {
+            devinfo->card = card;
+            devinfo->device = device;
+            ALOGD("%s card, got card=%d,device=%d", devinfo->id,
+                  devinfo->card, devinfo->device);
+        return true;
+    }
+    }
     return false;
 }
 
-static bool is_bt_out_sound_card(char* buf)
+static bool get_specified_in_dev(struct dev_info *devinfo,
+                                 int card,
+                                 const char *id,
+                                 struct dev_proc_info *match)
 {
-    if (buf == NULL)
+    int i = 0;
+    int device;
+    char str_device[32];
+    char info[256];
+    size_t len;
+    FILE* file = NULL;
+
+    /* parse card id */
+    if (!match)
+        return true; /* match any */
+    while (match[i].cid) {
+        if (!strcmp(id, match[i].cid)) {
+            break;
+        }
+        i++;
+    }
+    if (!match[i].cid)
         return false;
+    if (!match[i].did) { /* no exist dai info, exit */
+        devinfo->card = card;
+        devinfo->device = 0;
+        ALOGD("%s card, got card=%d,device=%d", devinfo->id,
+              devinfo->card, devinfo->device);
+        return true;
+    }
 
-    // add codes here
-
+    /* parse device id */
+    for (device = 0; device < SNDRV_DEVICES; device++) {
+        sprintf(str_device, "proc/asound/card%d/pcm%dc/info", card, device);
+        if (access(str_device, 0)) {
+            ALOGD("No exist %s, break and finish parsing", str_device);
+            break;
+        }
+        file = fopen(str_device, "r");
+        if (!file) {
+            ALOGD("Could reading %s property", str_device);
+            continue;
+        }
+        len = fread(info, sizeof(char), sizeof(info)/sizeof(char), file);
+        fclose(file);
+        if (len == 0 || len > sizeof(info)/sizeof(char))
+            continue;
+        if (info[len - 1] == '\n') {
+            len--;
+            info[len] = '\0';
+        }
+        /* parse device dai */
+        if (dev_id_match(info, match[i].did)) {
+            devinfo->card = card;
+            devinfo->device = device;
+            ALOGD("%s card, got card=%d,device=%d", devinfo->id,
+                  devinfo->card, devinfo->device);
+            return true;
+        }
+    }
     return false;
 }
 
-static bool is_mic_in_sound_card(char* buf)
+static bool is_specified_in_sound_card(char *id, struct dev_proc_info *match)
 {
-    /*add codes name here*/
-    static char* MIC_NAME [] =
-    {
-        "rockchiprk",
-        "realtekrt5651co",
-        "rockchipes8316c",
-        "rockchiprk809co",
-        "rockchiprk817co",
-        "rockchiprt5640c",
-    };
-    int length = sizeof(MIC_NAME)/sizeof(char*);
-
-    if (buf == NULL)
-        return false;
+    int i = 0;
 
     /*
      * mic: diffrent product may have diffrent card name,modify codes here
      * for example: 0 [rockchiprk3328 ]: rockchip-rk3328 - rockchip-rk3328
      */
-
-    for (int i = 0; i < length; i ++) {
-        if(strstr(buf,MIC_NAME[i]) && strstr(buf,":"))
+    if (!match)
+        return true;/* match any */
+    while (match[i].cid) {
+        if (!strcmp(id, match[i].cid)) {
             return true;
   }
-    return false;
-}
-
-static bool is_bt_in_sound_card(char* buf)
-{
-    if (buf == NULL)
-        return false;
-
-    // add codes here
-
-    return false;
-}
-
-static bool is_hdmi_in_sound_card(char* buf)
-{
-    /*add sound card name of hdmiin here*/
-    static char* NAME [] =
-    {
-        "hdmiin",
-    };
-    int length = sizeof(NAME)/sizeof(char*);
-
-    if (buf == NULL)
-        return false;
-
-    /*
-     * hdmiin: diffrent product may have diffrent card name,modify codes here
-     * for example:
-     *   1.   0 [realtekrt5651co]: realtekrt5651co - realtekrt5651codec_hdmiin
-     *   2.   2 [rk,hdmiin-tc358]: rk,hdmiin-tc358 - rk,hdmiin-tc358749x-codec
-     */
-    for (int i = 0; i < length; i ++) {
-        if (strstr(buf,NAME[i]) && strstr(buf,":")) {
-            return true;
-        }
+        i++;
     }
     return false;
 }
 
-static int get_card_number(char* buf)
+static void set_default_dev_info( struct dev_info *info, int size, int rid)
 {
-    if (buf == NULL)
-        return (int)SND_OUT_SOUND_CARD_UNKNOWN;
+    for(int i =0; i < size; i++) {
+        if (rid) {
+            info[i].id = NULL;
+        }
+        info[i].card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
+    }
+}
 
-    char* temp = buf;
-    int number = (int)SND_OUT_SOUND_CARD_UNKNOWN;
-    // skip space
-    while (isspace(*temp))
-        temp++;
-    sscanf(temp,"%d",&number);
-    ALOGD("%s: number =%d,card_name = %s",__FUNCTION__,number,buf);
-    return number;
+static void dumpdev_info(const char *tag, struct dev_info  *devinfo, int count)
+{
+    ALOGD("dump %s device info", tag);
+    for(int i = 0; i < count; i++) {
+        if (devinfo[i].id && devinfo[i].card != SND_OUT_SOUND_CARD_UNKNOWN)
+            ALOGD("dev_info %s  card=%d, device:%d", devinfo[i].id,
+                  devinfo[i].card,
+                  devinfo[i].device);
+    }
 }
 
 /*
@@ -481,50 +586,46 @@ static int get_card_number(char* buf)
  */
 static void read_out_sound_card(struct stream_out *out)
 {
-    int i = 0;
-    FILE* file = NULL;
-    char buf[1024];
-    char* temp = NULL;
-    int size = 0;
-    int number = 0;
+
     struct audio_device *device = NULL;
-    if ((out == NULL) || (out->dev == NULL)) {
+    int card = 0;
+    char str[32];
+    char id[20];
+    size_t len;
+    FILE* file = NULL;
+
+    if((out == NULL) || (out->dev == NULL)) {
         return ;
     }
     device = out->dev;
-    file = fopen(SND_CARDS_NODE,"r");
-    if (file == NULL){
-        ALOGE("%s: %d: open %s fail, errono = %s",__FUNCTION__,__LINE__,SND_CARDS_NODE,strerror(errno));
-        goto FAIL;
-    }
-
-    while ((size = get_line(file,buf,sizeof(buf))) >= 0) {
-        ALOGD("%s: buf = %s",__FUNCTION__,buf);
-        if (is_speaker_out_sound_card(buf)){
-            device->out_card[SND_OUT_SOUND_CARD_SPEAKER] = get_card_number(buf);
-        } else if (is_hdmi_out_sound_card(buf)){
-            device->out_card[SND_OUT_SOUND_CARD_HDMI] = get_card_number(buf);
-        } else if (is_spdif_out_sound_card(buf)){
-            device->out_card[SND_OUT_SOUND_CARD_SPDIF] = get_card_number(buf);
-        } else if (is_bt_out_sound_card(buf)){
-            device->out_card[SND_OUT_SOUND_CARD_BT] = get_card_number(buf);
+    set_default_dev_info(device->dev_out, SND_OUT_SOUND_CARD_UNKNOWN, 0);
+    for (card = 0; card < SNDRV_CARDS; card++) {
+        sprintf(str, "proc/asound/card%d/id", card);
+        if (access(str, 0)) {
+            ALOGD("No exist %s, break and finish parsing", str);
+            break;
         }
-    }
-    if (file != NULL) {
+        file = fopen(str, "r");
+        if (!file) {
+            ALOGD("Could reading %s property", str);
+            continue;
+        }
+        len = fread(id, sizeof(char), sizeof(id)/sizeof(char), file);
         fclose(file);
-        file = NULL;
+        if (len == 0 || len > sizeof(id)/sizeof(char))
+            continue;
+        if (id[len - 1] == '\n') {
+            len--;
+            id[len] = '\0';
+        }
+        ALOGD("card%d id:%s", card, id);
+        get_specified_out_dev(&device->dev_out[SND_OUT_SOUND_CARD_SPEAKER], card, id, SPEAKER_OUT_NAME);
+        get_specified_out_dev(&device->dev_out[SND_OUT_SOUND_CARD_HDMI], card, id, HDMI_OUT_NAME);
+        get_specified_out_dev(&device->dev_out[SND_OUT_SOUND_CARD_SPDIF], card, id, SPDIF_OUT_NAME);
+        get_specified_out_dev(&device->dev_out[SND_OUT_SOUND_CARD_BT], card, id, BT_OUT_NAME);
     }
+    dumpdev_info("out", device->dev_out, SND_OUT_SOUND_CARD_MAX);
     return ;
-FAIL:
-    if (file != NULL){
-        fclose(file);
-        file = NULL;
-    }
-    ALOGD("%s: read %s fail,using default card number for output,please fix it",__FUNCTION__,SND_CARDS_NODE);
-    device->out_card[SND_OUT_SOUND_CARD_SPEAKER] = 0;
-    device->out_card[SND_OUT_SOUND_CARD_HDMI] = 1;
-    device->out_card[SND_OUT_SOUND_CARD_SPDIF] = 2;
-    device->out_card[SND_OUT_SOUND_CARD_BT] = 3;
 }
 
 /*
@@ -533,47 +634,44 @@ FAIL:
  */
 static void read_in_sound_card(struct stream_in *in)
 {
-    int i = 0;
-    FILE* file = NULL;
-    char buf[1024];
-    char* temp = NULL;
-    int size = 0;
-    int number = 0;
     struct audio_device *device = NULL;
-    if ((in == NULL) || (in->dev == NULL)) {
+    int card = 0;
+    char str[32];
+    char id[20];
+    size_t len;
+    FILE* file = NULL;
+
+    if((in == NULL) || (in->dev == NULL)){
         return ;
     }
     device = in->dev;
-    file = fopen(SND_CARDS_NODE,"r");
-    if (file == NULL) {
-        ALOGE("%s: %d: open %s fail, errono = %s",__FUNCTION__,__LINE__,SND_CARDS_NODE,strerror(errno));
-        goto FAIL;
-    }
-
-    while ((size = get_line(file,buf,sizeof(buf))) >= 0) {
-        ALOGD("%s: buf = %s",__FUNCTION__,buf);
-        if (is_mic_in_sound_card(buf)) {
-            device->in_card[SND_IN_SOUND_CARD_MIC] = get_card_number(buf);
-        } else if (is_bt_in_sound_card(buf)){
-            device->in_card[SND_IN_SOUND_CARD_BT] = get_card_number(buf);
+    set_default_dev_info(device->dev_in, SND_IN_SOUND_CARD_UNKNOWN, 0);
+    for (card = 0; card < SNDRV_CARDS; card++) {
+        sprintf(str, "proc/asound/card%d/id", card);
+        if(access(str, 0)) {
+            ALOGD("No exist %s, break and finish parsing", str);
+                break;
         }
-        if (is_hdmi_in_sound_card(buf)){
-            device->in_card[SND_IN_SOUND_CARD_HDMI] = get_card_number(buf);
+        file = fopen(str, "r");
+        if (!file) {
+            ALOGD("Could reading %s property", str);
+            continue;
         }
-    }
-    if (file != NULL) {
+        len = fread(id, sizeof(char), sizeof(id)/sizeof(char), file);
         fclose(file);
-        file = NULL;
+        if (len == 0 || len > sizeof(id)/sizeof(char))
+            continue;
+        if (id[len - 1] == '\n') {
+            len--;
+           id[len] = '\0';
+        }
+        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_MIC], card, id, MIC_IN_NAME);
+        /* set HDMI audio input info if need hdmi audio input */
+        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_HDMI], card, id, HDMI_IN_NAME);
+        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_BT], card, id, BT_IN_NAME);
     }
+    dumpdev_info("in", device->dev_in, SND_IN_SOUND_CARD_MAX);
     return ;
-FAIL:
-    if (file != NULL) {
-        fclose(file);
-        file = NULL;
-    }
-    ALOGD("%s: read %s fail,using default card number,please fix it",__FUNCTION__,SND_CARDS_NODE);
-    device->in_card[SND_IN_SOUND_CARD_MIC] = 0;
-    device->in_card[SND_IN_SOUND_CARD_BT] = 3;
 }
 
 static bool is_bitstream(struct stream_out *out)
@@ -640,9 +738,9 @@ static int mixer_mode_set(struct stream_out *out)
      * 3) HDR: the stream is bitstream format, TrueHD/Atoms/DTS-HD/DTS-X use this format.
      */
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
-        pMixer = mixer_open_legacy(adev->out_card[SND_OUT_SOUND_CARD_HDMI]);
+        pMixer = mixer_open_legacy(adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card);
         if (!pMixer) {
-            ALOGE("mMixer is a null point %s %d,CARD = %d",__func__, __LINE__,adev->out_card[SND_OUT_SOUND_CARD_HDMI]);
+            ALOGE("mMixer is a null point %s %d,CARD = %d",__func__, __LINE__,adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card);
             return ret;
         }
         pctl = mixer_get_control(pMixer,"AUDIO MODE",0 );
@@ -690,11 +788,11 @@ static void open_sound_card_policy(struct stream_out *out)
     bool support = ((out->config.rate == 44100) || (out->config.rate == 48000));
     struct audio_device *adev = out->dev;
     if (support) {
-        if (adev->out_card[SND_OUT_SOUND_CARD_SPEAKER] != SND_OUT_SOUND_CARD_UNKNOWN) {
+        if(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card != SND_OUT_SOUND_CARD_UNKNOWN) {
             out->device |= AUDIO_DEVICE_OUT_SPEAKER;
         }
 
-        if (adev->out_card[SND_OUT_SOUND_CARD_HDMI] != SND_OUT_SOUND_CARD_UNKNOWN) {
+        if(adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card != SND_OUT_SOUND_CARD_UNKNOWN) {
             /*
              * hdmi is taken by direct/mulit pcm output
              */
@@ -705,7 +803,7 @@ static void open_sound_card_policy(struct stream_out *out)
             }
         }
 
-        if (adev->out_card[SND_OUT_SOUND_CARD_SPDIF] != SND_OUT_SOUND_CARD_UNKNOWN){
+        if(adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].card != SND_OUT_SOUND_CARD_UNKNOWN){
            out->device |= AUDIO_DEVICE_OUT_SPDIF;
         }
     }
@@ -733,6 +831,7 @@ static int start_output_stream(struct stream_out *out)
     struct audio_device *adev = out->dev;
     int ret = 0;
     int card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
+    int device = 0;
     // set defualt value to true for compatible with mid project
 
 
@@ -753,11 +852,12 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
-    route_pcm_card_open(adev->out_card[SND_OUT_SOUND_CARD_SPEAKER], getRouteFromDevice(out->device));
+    route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(out->device));
 
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
-            card = adev->out_card[SND_OUT_SOUND_CARD_HDMI];
+            card = adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card;
+            device =adev->dev_out[SND_OUT_SOUND_CARD_HDMI].device;
             if (card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
 #ifdef USE_DRM
             ret = mixer_mode_set(out);
@@ -767,7 +867,7 @@ static int start_output_stream(struct stream_out *out)
             }
 #endif
 
-                out->pcm[SND_OUT_SOUND_CARD_HDMI] = pcm_open(card, out->pcm_device,
+                out->pcm[SND_OUT_SOUND_CARD_HDMI] = pcm_open(card, device,
                                                     PCM_OUT | PCM_MONOTONIC, &out->config);
                 if (out->pcm[SND_OUT_SOUND_CARD_HDMI] &&
                         !pcm_is_ready(out->pcm[SND_OUT_SOUND_CARD_HDMI])) {
@@ -790,9 +890,10 @@ static int start_output_stream(struct stream_out *out)
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
                        AUDIO_DEVICE_OUT_ALL_SCO)) {
-        card = adev->out_card[SND_OUT_SOUND_CARD_SPEAKER];
-        if (card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
-            out->pcm[SND_OUT_SOUND_CARD_SPEAKER] = pcm_open(card, out->pcm_device,
+        card = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card;
+        device = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].device;
+        if(card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
+            out->pcm[SND_OUT_SOUND_CARD_SPEAKER] = pcm_open(card, device,
                                           PCM_OUT | PCM_MONOTONIC, &out->config);
             if (out->pcm[SND_OUT_SOUND_CARD_SPEAKER] && !pcm_is_ready(out->pcm[SND_OUT_SOUND_CARD_SPEAKER])) {
                 ALOGE("pcm_open(PCM_CARD) failed: %s,card number = %d",
@@ -806,9 +907,10 @@ static int start_output_stream(struct stream_out *out)
 
     if (out->device & AUDIO_DEVICE_OUT_SPDIF) {
         if (adev->owner[SOUND_CARD_SPDIF] == NULL){
-            card = adev->out_card[SND_OUT_SOUND_CARD_SPDIF];
-            if (card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
-                out->pcm[SND_OUT_SOUND_CARD_SPDIF] = pcm_open(card, out->pcm_device,
+            card = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].card;
+            device = adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].device;
+            if(card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
+                out->pcm[SND_OUT_SOUND_CARD_SPDIF] = pcm_open(card, device,
                                                     PCM_OUT | PCM_MONOTONIC, &out->config);
 
                 if (out->pcm[SND_OUT_SOUND_CARD_SPDIF] &&
@@ -939,8 +1041,8 @@ static int get_hdmiin_audio_rate(struct audio_device *adev)
     }
 
     // if hdmiin connect to codec, use 44100 sample rate
-    if (adev->in_card[SND_IN_SOUND_CARD_HDMI]
-            == adev->out_card[SND_OUT_SOUND_CARD_SPEAKER])
+    if (adev->dev_out[SND_IN_SOUND_CARD_HDMI].card
+            == adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card)
         rate = 44100;
 
     return rate;
@@ -985,17 +1087,20 @@ static int start_input_stream(struct stream_in *in)
     struct audio_device *adev = in->dev;
     int  ret = 0;
     int card = 0;
+    int device = 0;
+
     in_dump(in, 0);
     read_in_sound_card(in);
-    route_pcm_card_open(adev->in_card[SND_IN_SOUND_CARD_MIC],
+    route_pcm_card_open(adev->dev_in[SND_IN_SOUND_CARD_MIC].card,
                         getRouteFromDevice(in->device | AUDIO_DEVICE_BIT_IN));
 #ifdef RK3399_LAPTOP //HARD CODE FIXME
     if ((in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) &&
             (adev->mode == AUDIO_MODE_IN_COMMUNICATION)) {
         in->config = &pcm_config_in_bt;
-        card = adev->in_card[SND_IN_SOUND_CARD_BT];
+        card = adev->dev_in[SND_IN_SOUND_CARD_BT].card;
+        device =  adev->dev_in[SND_IN_SOUND_CARD_BT].device;
         if(card != SND_IN_SOUND_CARD_UNKNOWN){
-            in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
+            in->pcm = pcm_open(card, device, PCM_IN, in->config);
             if (in->resampler) {
                 release_resampler(in->resampler);
 
@@ -1018,9 +1123,10 @@ static int start_input_stream(struct stream_in *in)
         }
     } else {
         in->config = &pcm_config_in;
-        card = adev->in_card[SND_IN_SOUND_CARD_MIC];
+        card = adev->dev_in[SND_IN_SOUND_CARD_MIC].card;
+        device =  adev->dev_in[SND_IN_SOUND_CARD_MIC].device;
         if (card != SND_IN_SOUND_CARD_UNKNOWN) {
-            in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
+            in->pcm = pcm_open(card, device, PCM_IN, in->config);
 
             if (in->resampler) {
                 release_resampler(in->resampler);
@@ -1044,7 +1150,7 @@ static int start_input_stream(struct stream_in *in)
         }
     }
 #else
-    card = (int)adev->in_card[SND_IN_SOUND_CARD_HDMI];
+    card = (int)adev->dev_in[SND_IN_SOUND_CARD_HDMI].card;
     if (in->device & AUDIO_DEVICE_IN_HDMI && (card != (int)SND_OUT_SOUND_CARD_UNKNOWN)) {
         in->config->rate = get_hdmiin_audio_rate(adev);
         in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
@@ -1058,12 +1164,15 @@ static int start_input_stream(struct stream_in *in)
         if (in->config->rate != in->requested_rate) {
             ret = create_resampler_helper(in, in->config->rate);
         }
-    } else if (in->device & AUDIO_DEVICE_IN_BUILTIN_MIC) {
-        card = adev->in_card[SND_IN_SOUND_CARD_MIC];
-        in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
+    } else if (in->device & AUDIO_DEVICE_IN_BUILTIN_MIC ||
+               in->device & AUDIO_DEVICE_IN_WIRED_HEADSET) {
+        card = adev->dev_in[SND_IN_SOUND_CARD_MIC].card;
+        device =  adev->dev_in[SND_IN_SOUND_CARD_MIC].device;
+        in->pcm = pcm_open(card, device, PCM_IN, in->config);
     } else {
-        card = adev->in_card[SND_IN_SOUND_CARD_BT];
-        in->pcm = pcm_open(card, PCM_DEVICE, PCM_IN, in->config);
+        card = adev->dev_in[SND_IN_SOUND_CARD_BT].card;
+        device = adev->dev_in[SND_IN_SOUND_CARD_BT].device;
+        in->pcm = pcm_open(card, device, PCM_IN, in->config);
     }
 #endif
     if (in->pcm && !pcm_is_ready(in->pcm)) {
@@ -1898,7 +2007,7 @@ static int bitstream_write_data(struct stream_out *out,void* buffer,size_t bytes
     struct audio_device *adev = out->dev;
     int ret = 0;
     if ((out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) && (is_multi_pcm(out) || is_bitstream(out))) {
-        int card = adev->out_card[SND_OUT_SOUND_CARD_HDMI];
+        int card = adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card;
         if ((card != SND_OUT_SOUND_CARD_UNKNOWN) && (out->pcm[SND_OUT_SOUND_CARD_HDMI] != NULL)) {
             if(out->config.format == PCM_FORMAT_S16_LE){
                 out_mute_data(out,buffer,bytes);
@@ -3594,13 +3703,14 @@ static void adev_open_init(struct audio_device *adev)
     for(i =0; i < OUTPUT_TOTAL; i++){
         adev->outputs[i] = NULL;
     }
-    for(i =0; i < SND_OUT_SOUND_CARD_MAX; i++){
-        adev->out_card[i] = (int)SND_OUT_SOUND_CARD_UNKNOWN;
-    }
-    for(i =0; i < SND_IN_SOUND_CARD_MAX; i++){
-        adev->in_card[i] = (int)SND_IN_SOUND_CARD_UNKNOWN;
-    }
-
+    set_default_dev_info(adev->dev_out, SND_OUT_SOUND_CARD_UNKNOWN, 1);
+    set_default_dev_info(adev->dev_in, SND_IN_SOUND_CARD_UNKNOWN, 1);
+    adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].id = "SPEAKER";
+    adev->dev_out[SND_OUT_SOUND_CARD_HDMI].id = "HDMI";
+    adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].id = "SPDIF";
+    adev->dev_out[SND_OUT_SOUND_CARD_BT].id = "BT";
+    adev->dev_in[SND_IN_SOUND_CARD_MIC].id = "MIC";
+    adev->dev_in[SND_IN_SOUND_CARD_BT].id = "BT";
     adev->owner[0] = NULL;
     adev->owner[1] = NULL;
 
