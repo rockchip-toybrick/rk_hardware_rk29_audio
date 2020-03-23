@@ -665,10 +665,10 @@ static void read_in_sound_card(struct stream_in *in)
             len--;
            id[len] = '\0';
         }
-        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_MIC], card, id, MIC_IN_NAME);
+        get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_MIC], card, id, MIC_IN_NAME);
         /* set HDMI audio input info if need hdmi audio input */
-        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_HDMI], card, id, HDMI_IN_NAME);
-        get_specified_in_dev(&device->dev_out[SND_IN_SOUND_CARD_BT], card, id, BT_IN_NAME);
+        get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_HDMI], card, id, HDMI_IN_NAME);
+        get_specified_in_dev(&device->dev_in[SND_IN_SOUND_CARD_BT], card, id, BT_IN_NAME);
     }
     dumpdev_info("in", device->dev_in, SND_IN_SOUND_CARD_MAX);
     return ;
