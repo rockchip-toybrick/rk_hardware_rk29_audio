@@ -477,7 +477,82 @@ const struct config_control rt5640_headphone_ringtone_controls[] = {
 };
 
 const struct config_control rt5640_speaker_headphone_normal_controls[] = {
-
+    {
+        .ctl_name = "DAI select",
+        .str_val = "1:1|2:2",
+    },
+    {
+        .ctl_name = "DAC MIXL INF1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "DAC MIXR INF1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Stereo DAC MIXL DAC L1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Stereo DAC MIXR DAC R1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "SPK MIXL DAC L1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "SPK MIXR DAC R1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "SPOL MIX SPKVOL L Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "SPOR MIX SPKVOL R Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Speaker L Playback Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Speaker R Playback Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "Speaker Playback Volume",
+        .int_val = {30, 33},
+    },
+    {
+        .ctl_name = "Speaker Channel Switch",
+        .int_val = {on,on},
+    },
+    {
+        .ctl_name = "OUT MIXL DAC L1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "OUT MIXR DAC R1 Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "HPO MIX HPVOL Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "HP L Playback Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "HP R Playback Switch",
+        .int_val = {on},
+    },
+    {
+        .ctl_name = "HP Channel Switch",
+        .int_val = {on,on},
+    },
 };
 
 const struct config_control rt5640_speaker_headphone_ringtone_controls[] = {
