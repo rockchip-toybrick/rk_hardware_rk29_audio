@@ -324,6 +324,7 @@ struct dev_proc_info HDMI_OUT_NAME[] =
 struct dev_proc_info SPDIF_OUT_NAME[] =
 {
     {"ROCKCHIPSPDIF", "dit-hifi",},
+    {"rockchipspdif", NULL,},
     {"rockchipcdndp", NULL,},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
@@ -368,6 +369,20 @@ struct dev_proc_info BT_IN_NAME[] =
     {"rockchipbt", NULL},
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
+
+static int name_match(const char* dst, const char* src)
+{
+    int score = 0;
+    // total equal
+    if (!strcmp(dst, src)) {
+        score = 100;
+    } else  if (strstr(dst, src)) {
+        // part equal
+        score = 50;
+    }
+
+    return score;
+}
 
 static bool is_specified_out_sound_card(char *id, struct dev_proc_info *match)
 {
@@ -425,19 +440,28 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
     char info[256];
     size_t len;
     FILE* file = NULL;
+    int better = 0;
+    int index = -1;
 
     /* parse card id */
     if (!match)
         return true; /* match any */
     while (match[i].cid) {
-        if (!strcmp(id, match[i].cid)) {
-            break;
+        int score = name_match(id, match[i].cid);
+        if (score > better) {
+            better = score;
+            index = i;
         }
         i++;
     }
-    if (!match[i].cid)
+
+    if (index < 0)
         return false;
-    if (!match[i].did) { /* no exist dai info, exit */
+
+    if (!match[index].cid)
+        return false;
+
+    if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
         devinfo->device = 0;
         ALOGD("%s card, got card=%d,device=%d", devinfo->id,
@@ -488,19 +512,28 @@ static bool get_specified_in_dev(struct dev_info *devinfo,
     char info[256];
     size_t len;
     FILE* file = NULL;
+    int better = 0;
+    int index = -1;
 
     /* parse card id */
     if (!match)
         return true; /* match any */
     while (match[i].cid) {
-        if (!strcmp(id, match[i].cid)) {
-            break;
+        int score = name_match(id, match[i].cid);
+        if (score > better) {
+            better = score;
+            index = i;
         }
         i++;
     }
-    if (!match[i].cid)
+
+    if (index < 0)
         return false;
-    if (!match[i].did) { /* no exist dai info, exit */
+
+    if (!match[index].cid)
+        return false;
+
+    if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
         devinfo->device = 0;
         ALOGD("%s card, got card=%d,device=%d", devinfo->id,
@@ -3704,8 +3737,8 @@ static void adev_open_init(struct audio_device *adev)
     for(i =0; i < OUTPUT_TOTAL; i++){
         adev->outputs[i] = NULL;
     }
-    set_default_dev_info(adev->dev_out, SND_OUT_SOUND_CARD_UNKNOWN, 1);
-    set_default_dev_info(adev->dev_in, SND_IN_SOUND_CARD_UNKNOWN, 1);
+    set_default_dev_info(adev->dev_out, SND_OUT_SOUND_CARD_MAX, 1);
+    set_default_dev_info(adev->dev_in, SND_IN_SOUND_CARD_MAX, 1);
     adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].id = "SPEAKER";
     adev->dev_out[SND_OUT_SOUND_CARD_HDMI].id = "HDMI";
     adev->dev_out[SND_OUT_SOUND_CARD_SPDIF].id = "SPDIF";
