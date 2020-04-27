@@ -490,7 +490,7 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
             info[len] = '\0';
         }
         /* parse device dai */
-        if (dev_id_match(info, match[i].did)) {
+        if (dev_id_match(info, match[index].did)) {
             devinfo->card = card;
             devinfo->device = device;
             ALOGD("%s card, got card=%d,device=%d", devinfo->id,
