@@ -1325,13 +1325,15 @@ static uint32_t out_get_sample_rate(const struct audio_stream *stream)
     struct stream_out *out = (struct stream_out *)stream;
     char value[PROPERTY_VALUE_MAX];
     property_get("vendor.vts_test", value, NULL);
-
     if (strcmp(value, "true") == 0) {
-        return out->aud_config.sample_rate;
+        if (out->use_default_config) {
+            return 48000;
+        } else {
+            return out->aud_config.sample_rate;
+        }
     } else {
         return out->config.rate;
     }
-
 }
 
 /**
@@ -1374,13 +1376,11 @@ static audio_channel_mask_t out_get_channels(const struct audio_stream *stream)
     struct stream_out *out = (struct stream_out *)stream;
     char value[PROPERTY_VALUE_MAX];
     property_get("vendor.vts_test", value, NULL);
-
-    if (strcmp(value, "true") == 0){
-        return out->aud_config.channel_mask;
+    if (out->use_default_config) {
+        return AUDIO_CHANNEL_OUT_MONO;
     } else {
-        return out->channel_mask;
+        return out->aud_config.channel_mask;
     }
-
 }
 
 /**
@@ -1395,13 +1395,11 @@ static audio_format_t out_get_format(const struct audio_stream *stream)
     struct stream_out *out = (struct stream_out *)stream;
     char value[PROPERTY_VALUE_MAX];
     property_get("vendor.vts_test", value, NULL);
-
-    if (strcmp(value, "true") == 0){
-        return out->aud_config.format;
-    } else {
+    if (out->use_default_config) {
         return AUDIO_FORMAT_PCM_16_BIT;
+    } else {
+        return out->aud_config.format;
     }
-
 }
 
 /**
@@ -1615,6 +1613,13 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
         val = atoi(value);
         out->aud_config.sample_rate = val;
     }
+    // set format
+    ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_FORMAT,
+                            value, sizeof(value));
+    if (ret >= 0) {
+        val = atoi(value);
+        out->aud_config.format = val;
+    }
 
     ret = str_parms_get_str(parms, AUDIO_PARAMETER_STREAM_ROUTING,
                             value, sizeof(value));
@@ -1649,6 +1654,7 @@ static int out_set_parameters(struct audio_stream *stream, const char *kvpairs)
             out->device = val;
         }
     }
+    out->use_default_config = false;
     unlock_all_outputs(adev, NULL);
 
     str_parms_destroy(parms);
@@ -1776,6 +1782,7 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
     struct str_parms *query = str_parms_create_str(keys);
     char *str = NULL;
     struct str_parms *reply = str_parms_create();
+    out->use_default_config = true;
 
     if (stream_get_parameter_formats(stream,query,reply) == 0) {
         str = str_parms_to_str(reply);
@@ -1787,7 +1794,6 @@ static char * out_get_parameters(const struct audio_stream *stream, const char *
         ALOGD("%s,str_parms_get_str failed !",__func__);
         str = strdup("");
     }
-
     str_parms_destroy(query);
     str_parms_destroy(reply);
 
@@ -2972,6 +2978,7 @@ static int adev_open_output_stream(struct audio_hw_device *dev,
     out->output_direct_mode = LPCM;
     out->output_direct = false;
     out->snd_reopen = false;
+    out->use_default_config = false;
     out->channel_buffer = NULL;
     out->bitstream_buffer = NULL;
 
@@ -3508,6 +3515,10 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         ALOGE("%s:channel is not support",__FUNCTION__);
         return -EINVAL;
     }
+    if (config->sample_rate == 0 ) {
+        config->sample_rate = 44100;
+        ALOGW("%s: rate is not support",__FUNCTION__);
+    }
 
     in = (struct stream_in *)calloc(1, sizeof(struct stream_in));
     if (!in)
@@ -3575,7 +3586,7 @@ static int adev_open_input_stream(struct audio_hw_device *dev,
         goto err_malloc;
     }
 
-    if (in->requested_rate != pcm_config->rate) {
+    if ((in->requested_rate != 0) && (in->requested_rate != pcm_config->rate)) {
         in->buf_provider.get_next_buffer = get_next_buffer;
         in->buf_provider.release_buffer = release_buffer;
 
