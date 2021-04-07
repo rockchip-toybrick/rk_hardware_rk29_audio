@@ -202,9 +202,6 @@ static void force_non_hdmi_out_standby(struct audio_device *adev)
  */
 unsigned getOutputRouteFromDevice(uint32_t device)
 {
-    /*if (mMode != AudioSystem::MODE_RINGTONE && mMode != AudioSystem::MODE_NORMAL)
-        return PLAYBACK_OFF_ROUTE;
-    */
     switch (device) {
     case AUDIO_DEVICE_OUT_SPEAKER:
         return SPEAKER_NORMAL_ROUTE;
@@ -220,12 +217,7 @@ unsigned getOutputRouteFromDevice(uint32_t device)
     case AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT:
         return BLUETOOTH_NORMAL_ROUTE;
     case AUDIO_DEVICE_OUT_AUX_DIGITAL:
-	return HDMI_NORMAL_ROUTE;
-        //case AudioSystem::DEVICE_OUT_EARPIECE:
-        //	return EARPIECE_NORMAL_ROUTE;
-        //case AudioSystem::DEVICE_OUT_ANLG_DOCK_HEADSET:
-        //case AudioSystem::DEVICE_OUT_DGTL_DOCK_HEADSET:
-        //	return USB_NORMAL_ROUTE;
+        return HDMI_NORMAL_ROUTE;
     default:
         return PLAYBACK_OFF_ROUTE;
     }
@@ -886,9 +878,11 @@ static int start_output_stream(struct stream_out *out)
 #endif
 
     out_dump(out, 0);
-    route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(out->device));
 
     if (out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL) {
+        audio_devices_t route_device = out->device & AUDIO_DEVICE_OUT_AUX_DIGITAL;
+        route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card, getRouteFromDevice(route_device));
+
         if (adev->owner[SOUND_CARD_HDMI] == NULL) {
             card = adev->dev_out[SND_OUT_SOUND_CARD_HDMI].card;
             device =adev->dev_out[SND_OUT_SOUND_CARD_HDMI].device;
@@ -924,6 +918,11 @@ static int start_output_stream(struct stream_out *out)
                        AUDIO_DEVICE_OUT_WIRED_HEADSET |
                        AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
                        AUDIO_DEVICE_OUT_ALL_SCO)) {
+        audio_devices_t route_device = out->device & (AUDIO_DEVICE_OUT_SPEAKER |
+                                                      AUDIO_DEVICE_OUT_WIRED_HEADSET |
+                                                      AUDIO_DEVICE_OUT_WIRED_HEADPHONE |
+                                                      AUDIO_DEVICE_OUT_ALL_SCO);
+        route_pcm_card_open(adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card, getRouteFromDevice(route_device));
         card = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].card;
         device = adev->dev_out[SND_OUT_SOUND_CARD_SPEAKER].device;
         if(card != (int)SND_OUT_SOUND_CARD_UNKNOWN) {
