@@ -53,6 +53,11 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define SND_CARDS_NODE          "/proc/asound/cards"
+#define SAMPLECOUNT 441*5*2*2
+
+#define CHR_VALID (1 << 1)
+#define CHL_VALID (1 << 0)
+#define CH_CHECK (1 << 2)
 
 struct SurroundFormat {
     audio_format_t format;
@@ -700,6 +705,61 @@ static void read_in_sound_card(struct stream_in *in)
     return ;
 }
 
+static uint32_t channel_check(void *data, unsigned int len)
+{
+    short *pcmLeftChannel = (short*)data;
+    short *pcmRightChannel = pcmLeftChannel + 1;
+    unsigned int index = 0;
+    int leftValid = 0x0;
+    int rightValid = 0x0;
+    short valuel = 0;
+    short valuer = 0;
+    uint32_t validflag = 0;
+
+    valuel = *pcmLeftChannel;
+    valuer = *pcmRightChannel;
+    for (index = 0; index < len; index += 2) {
+        if ((pcmLeftChannel[index] >= valuel + 50) ||
+            (pcmLeftChannel[index] <= valuel - 50))
+            leftValid++;
+        if ((pcmRightChannel[index] >= valuer + 50) ||
+            (pcmRightChannel[index] <= valuer - 50))
+            rightValid++;
+    }
+    if (leftValid > 20)
+        validflag |= CHL_VALID;
+    if (rightValid > 20)
+        validflag |= CHR_VALID;
+    return validflag;
+}
+
+static void channel_fixed(void *data, unsigned len, uint32_t chFlag)
+{
+    short *ch0 ,*ch1, *pcmValid, *pcmInvalid;
+
+    if ((chFlag&(CHL_VALID | CHR_VALID)) == 0 ||
+        (chFlag&(CHL_VALID | CHR_VALID)) == (CHL_VALID | CHR_VALID))
+        return;
+    ch0 = (short*)data;
+    ch1 = ch0 + 1;
+    pcmValid = ch0;
+    pcmInvalid = ch0;
+    if (chFlag & CHL_VALID)
+        pcmInvalid  = ch1;
+    else if (chFlag & CHR_VALID)
+        pcmValid = ch1;
+    for (unsigned index = 0; index < len; index += 2) {
+        pcmInvalid[index] = pcmValid[index];
+    }
+    return;
+}
+
+static void channel_check_start(struct stream_in *in)
+{
+    in->channel_flag = CH_CHECK;
+    in->start_checkcount = 0;
+}
+
 static bool is_bitstream(struct stream_out *out)
 {
     if (out == NULL) {
@@ -996,12 +1056,24 @@ static int get_next_buffer(struct resampler_buffer_provider *buffer_provider,
     if (in->frames_in == 0) {
         size = pcm_frames_to_bytes(in->pcm, in->config->period_size);
         in->read_status = pcm_read(in->pcm,
-                                   (void*)in->buffer,pcm_frames_to_bytes(in->pcm, in->config->period_size));
+                                   (void*)in->buffer, size);
         if (in->read_status != 0) {
             ALOGE("get_next_buffer() pcm_read error %d", in->read_status);
             buffer->raw = NULL;
             buffer->frame_count = 0;
             return in->read_status;
+        }
+
+        if (in->config->channels == 2) {
+            if (in->channel_flag & CH_CHECK) {
+                if (in->start_checkcount < SAMPLECOUNT) {
+                    in->start_checkcount += size;
+                } else {
+                    in->channel_flag = channel_check((void*)in->buffer, size / 2);
+                    in->channel_flag &= ~CH_CHECK;
+                }
+            }
+            channel_fixed((void*)in->buffer, size / 2, in->channel_flag & ~CH_CHECK);
         }
 
 #ifdef RK_DENOISE_ENABLE
@@ -1125,6 +1197,7 @@ static int start_input_stream(struct stream_in *in)
     int card = 0;
     int device = 0;
 
+    channel_check_start(in);
     in_dump(in, 0);
     read_in_sound_card(in);
     route_pcm_card_open(adev->dev_in[SND_IN_SOUND_CARD_MIC].card,
@@ -2530,6 +2603,7 @@ static int in_set_parameters(struct audio_stream *stream, const char *kvpairs)
         val = atoi(value) & ~AUDIO_DEVICE_BIT_IN;
         /* no audio device uses val == 0 */
         if ((in->device != val) && (val != 0)) {
+            channel_check_start(in);
             /* force output standby to start or stop SCO pcm stream if needed */
             if ((val & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) ^
                     (in->device & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET)) {
