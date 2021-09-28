@@ -267,6 +267,7 @@ struct dev_info
     const char *id;
     int card;
     int device;
+    int score;
 };
 
 struct audio_device {

@@ -349,7 +349,6 @@ struct dev_proc_info MIC_IN_NAME[] =
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
-
 struct dev_proc_info HDMI_IN_NAME[] =
 {
     {"realtekrt5651co", "tc358749x-audio"},
@@ -363,19 +362,44 @@ struct dev_proc_info BT_IN_NAME[] =
     {NULL, NULL}, /* Note! Must end with NULL, else will cause crash */
 };
 
-static int name_match(const char* dst, const char* src)
+/* Levenshtein distance
+ */
+#define minimum(a, b) (a > b ? b : a)
+static int name_match(const char *dst, const char *src)
 {
-    int score = 0;
-    // total equal
-    if (!strcmp(dst, src)) {
-        score = 100;
-    } else  if (strstr(dst, src)) {
-        // part equal
-        score = 50;
-    }
+        char idx , idy;
+        float percent;
+        int len1;
+        int len2;
+        int v1, v2, v3;
+        char dist[64][64]  = {0};
 
-    return score;
+        len1 = strlen(dst);
+        len2 = strlen(src);
+        len1 = len1 > 63 ? 63 : len1;
+        len2 = len2 > 63 ? 63 : len2; /* only compare string less than 64 */
+        for (idx = 0; idx <= len1; idx++) {
+            dist[idx][0] = idx;
+        }
+        for (idx = 0; idx <= len2; idx++) {
+            dist[0][idx] = idx;
+        }
+        for (idx = 1; idx <= len1; idx++) {
+            for (idy = 1; idy <= len2; idy++) {
+                if (dst[idx - 1] == src[idy - 1]) {
+                    v1 = dist[idx - 1][idy - 1] + 0;
+                } else {
+                    v1 = dist[idx - 1][idy - 1] + 1;
+                }
+                v2 = dist[idx][idy - 1] + 1;
+                v3 = dist[idx - 1][idy] + 1;
+                dist[idx][idy] = minimum(minimum(v1, v2), v3);
+            }
+        }
+        percent =1 - (float) dist[len1][len2] / (len1 > len2 ? len1 : len2);
+        return percent*60000;
 }
+#undef minimum
 
 static bool is_specified_out_sound_card(char *id, struct dev_proc_info *match)
 {
@@ -433,7 +457,7 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
     char info[256];
     size_t len;
     FILE* file = NULL;
-    int better = 0;
+    int better = devinfo->score;
     int index = -1;
 
     /* parse card id */
@@ -453,7 +477,7 @@ static bool get_specified_out_dev(struct dev_info *devinfo,
 
     if (!match[index].cid)
         return false;
-
+    devinfo->score = better;
     if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
         devinfo->device = 0;
@@ -505,7 +529,7 @@ static bool get_specified_in_dev(struct dev_info *devinfo,
     char info[256];
     size_t len;
     FILE* file = NULL;
-    int better = 0;
+    int better = devinfo->score;
     int index = -1;
 
     /* parse card id */
@@ -525,7 +549,7 @@ static bool get_specified_in_dev(struct dev_info *devinfo,
 
     if (!match[index].cid)
         return false;
-
+    devinfo->score = better;
     if (!match[index].did) { /* no exist dai info, exit */
         devinfo->card = card;
         devinfo->device = 0;
@@ -585,6 +609,9 @@ static bool is_specified_in_sound_card(char *id, struct dev_proc_info *match)
     return false;
 }
 
+/* rid: reset card id or not
+ *
+ */
 static void set_default_dev_info( struct dev_info *info, int size, int rid)
 {
     for(int i =0; i < size; i++) {
@@ -592,6 +619,7 @@ static void set_default_dev_info( struct dev_info *info, int size, int rid)
             info[i].id = NULL;
         }
         info[i].card = (int)SND_OUT_SOUND_CARD_UNKNOWN;
+        info[i].score = 0;
     }
 }
 
@@ -624,7 +652,7 @@ static void read_out_sound_card(struct stream_out *out)
         return ;
     }
     device = out->dev;
-    set_default_dev_info(device->dev_out, SND_OUT_SOUND_CARD_UNKNOWN, 0);
+    set_default_dev_info(device->dev_out, SND_OUT_SOUND_CARD_MAX, 0);
     for (card = 0; card < SNDRV_CARDS; card++) {
         sprintf(str, "proc/asound/card%d/id", card);
         if (access(str, 0)) {
@@ -671,7 +699,7 @@ static void read_in_sound_card(struct stream_in *in)
         return ;
     }
     device = in->dev;
-    set_default_dev_info(device->dev_in, SND_IN_SOUND_CARD_UNKNOWN, 0);
+    set_default_dev_info(device->dev_in, SND_IN_SOUND_CARD_MAX, 0);
     for (card = 0; card < SNDRV_CARDS; card++) {
         sprintf(str, "proc/asound/card%d/id", card);
         if(access(str, 0)) {
@@ -3702,6 +3730,7 @@ static void adev_open_init(struct audio_device *adev)
     adev->dev_out[SND_OUT_SOUND_CARD_BT].id = "BT";
     adev->dev_in[SND_IN_SOUND_CARD_MIC].id = "MIC";
     adev->dev_in[SND_IN_SOUND_CARD_BT].id = "BT";
+    adev->dev_in[SND_IN_SOUND_CARD_HDMI].id = "HDMIIN";
     adev->owner[0] = NULL;
     adev->owner[1] = NULL;
 
