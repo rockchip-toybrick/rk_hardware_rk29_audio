@@ -379,6 +379,8 @@ struct stream_in {
 #ifdef RK_DENOISE_ENABLE
     hrkdeniose mDenioseState;
 #endif
+    uint32_t channel_flag;
+    int start_checkcount;
 };
 
 #define STRING_TO_ENUM(string) { #string, string }
